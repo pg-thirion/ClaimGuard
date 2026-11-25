@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 from claimguard import train
 
-st.set_page_config(page_title="ClaimGuard | Risk intelligence", page_icon="CG", layout="wide")
+st.set_page_config(page_title="ClaimGuard | Risk intelligence", page_icon=":material/shield:", layout="wide")
 
 @st.cache_resource(show_spinner="Training synthetic research models...")
 def load_model():
