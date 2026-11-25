@@ -47,11 +47,25 @@ def generate_claims(n: int = 4000, seed: int = 42) -> pd.DataFrame:
         "invoice_reuse": reuse,
         "document_gaps": gaps,
         "synthetic_outcome": outcome,
+        "policy_id": [f"POL-{i:05d}" for i in rng.integers(1, max(2, n//2), n)],
+        "provider_id": [f"PR-{i:03d}" for i in rng.integers(1, 81, n)],
+        "reported_date": pd.Timestamp("2026-01-01") + pd.to_timedelta(rng.integers(0, 180, n), unit="D"),
     })
 
 
 def features(claims: pd.DataFrame) -> pd.DataFrame:
     frame = claims.copy()
+    if frame.empty:
+        raise ValueError("At least one claim is required.")
+    numeric = ["claim_amount", "cover_limit", *[k for k in FEATURES if k != "amount_ratio"]]
+    frame[numeric] = frame[numeric].apply(pd.to_numeric, errors="raise")
+    if not np.isfinite(frame[numeric].to_numpy()).all():
+        raise ValueError("Non-finite inputs.")
+    if (frame["claim_amount"] > frame["cover_limit"]).any() or not frame["invoice_reuse"].isin([0, 1]).all() or not frame["document_gaps"].between(0, 4).all():
+        raise ValueError("Claim values outside synthetic schema.")
+    for key in ["policy_age_days", "prior_claims", "report_delay_days", "invoice_reuse", "document_gaps"]:
+        if (frame[key] % 1 != 0).any():
+            raise ValueError("Expected integer counts.")
     if (frame["cover_limit"] <= 0).any():
         raise ValueError("Cover limit must be positive.")
     frame["amount_ratio"] = frame["claim_amount"] / frame["cover_limit"]
@@ -69,6 +83,8 @@ class ClaimModel:
     anomaly_reference: np.ndarray
     train_ids: frozenset
     test: pd.DataFrame
+    validation: pd.DataFrame
+    training: pd.DataFrame
 
     def score(self, claims: pd.DataFrame) -> pd.DataFrame:
         x = self.scaler.transform(features(claims))
@@ -114,9 +130,10 @@ class ClaimModel:
 
 def train(n: int = 4000, seed: int = 42) -> ClaimModel:
     data = generate_claims(n, seed)
-    train_data, test = train_test_split(
-        data, test_size=.25, random_state=seed, stratify=data["synthetic_outcome"]
+    train_data, holdout = train_test_split(
+        data, test_size=.40, random_state=seed, stratify=data["synthetic_outcome"]
     )
+    validation, test = train_test_split(holdout, test_size=.5, random_state=seed, stratify=holdout["synthetic_outcome"])
     scaler = StandardScaler()
     x = scaler.fit_transform(features(train_data))
     classifier = LogisticRegression(max_iter=1000, random_state=seed)
@@ -124,4 +141,4 @@ def train(n: int = 4000, seed: int = 42) -> ClaimModel:
     anomaly = IsolationForest(n_estimators=100, random_state=seed, n_jobs=1)
     anomaly.fit(x)
     reference = np.sort(-anomaly.score_samples(x))
-    return ClaimModel(scaler, classifier, anomaly, reference, frozenset(train_data["claim_id"]), test.reset_index(drop=True))
+    return ClaimModel(scaler, classifier, anomaly, reference, frozenset(train_data["claim_id"]), test.reset_index(drop=True), validation.reset_index(drop=True), train_data.reset_index(drop=True))

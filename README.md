@@ -1,41 +1,41 @@
 # ClaimGuard
 
-Explainable insurance claim risk triage for a synthetic short-term insurance portfolio.
+Explainable insurance risk triage for synthetic short-term insurance claims. Python, scikit-learn, Streamlit and SQLite.
 
-ClaimGuard combines supervised logistic regression with an independent Isolation Forest anomaly detector. Investigators can rank claims, inspect exact model contributions, evaluate threshold trade-offs and record review outcomes. All data is generated locally; no customer data, external APIs or API keys are required.
-
-## Run locally
+## Run
 
 Python 3.11 or 3.12:
-
 ```bash
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
+# Activate your environment, then:
+python -m pip install -r requirements.txt
 streamlit run app.py
+python -m pytest -v
 ```
 
-Run tests with `python -m pytest -q`.
+Default storage is session-local SQLite. For a trusted single-user local installation only, set the environment variable CLAIMGUARD_DB to a private database path before starting. Never configure shared persistence on a public deployment. The demo has no authentication. Never enter real or personal data.
 
-## Architecture
+## Workspaces
 
-- `claimguard.py`: reproducible synthetic data generation, feature engineering, training, held-out evaluation and claim-level explanations.
-- `app.py`: investigation queue, individual claim inspector, model evaluation and session-only review log.
-- `tests/test_claimguard.py`: data, leakage, prediction, explanation and evaluation tests.
+| Workspace | Capabilities |
+| --- | --- |
+| Portfolio | KPIs, monthly activity, category exposure, risk distribution, risk/anomaly scatter, export |
+| Queue | Either/both/individual signals, amount and status filters, category search, sorting, watchlist, CSV |
+| Inspector | Exact logistic contributions, shared fictional policy/provider links, scenario comparison, JSON case packets |
+| Cases | Analyst aliases, status, tags, evidence checklist, notes, watchlist, append-only events, hash verification, CSV |
+| Evaluation | Logistic/random forest/prevalence benchmark, Brier score, calibration, capacity/lift, category slices, confusion matrix |
+| Planner | Validation-only cost-sensitive threshold search and review workload |
+| Drift | Portfolio stress tests, PSI and feature mean comparisons |
+| Governance | Logistic fingerprint, split counts, feature dictionary, coefficients, usage limitations |
 
-The generator creates fictional motor, property and household claims in South African rand. A latent simulated outcome influences overlapping distributions rather than a deterministic fraud rule. Claim identifiers, category and outcome are excluded from model inputs. Amount-to-cover ratio, policy age, prior claims, reporting delay, repeated invoice references and document gaps are illustrative indicators, not evidence of fraud.
+## Method
 
-Training and test samples are stratified and disjoint. Standardisation and anomaly reference distributions are fitted only on the training data. Logistic regression outputs a synthetic outcome probability; Isolation Forest outputs a separate percentile relative to training anomalies. Local explanations are signed contributions to the logistic log-odds, including the baseline intercept. They are exact for this model, not causal explanations.
+4,000 simulated claims in ZAR, with overlapping conditional distributions for a latent synthetic outcome. Fictional policy/provider identifiers and dates are generated for display and linking only. They are not features or evidence of fraud. Stratified 60/20/20 training, validation and test split. Fit scaling, logistic regression and Isolation Forest only on training; choose cost-sensitive thresholds on validation. Random forest and prevalence benchmarks are reported on test, not used to select the operational model. Risk score is a synthetic outcome estimate; anomaly percentile ranks unusualness relative to training. Exact local log-odds contributions are non-causal. PSI uses smoothed quantile bins; illustrative stress scenarios are not counterfactual causal claims.
 
-Evaluation reports ROC-AUC, average precision, precision, recall, F1, false positives and false negatives at the selected threshold. Threshold selection on the displayed test set is exploratory and would require a separate validation set before deployment. No performance claims about real insurance portfolios are made.
+## Safety and limitations
 
-## Responsible use
+Educational research only. Never deny, delay or price real claims based on these scores. No real data or external API calls. Category analysis is not demographic fairness testing. Model fingerprint covers logistic coefficients, intercept and scaler, not an entire reproducibility manifest. Hash-chained events detect edits but can be rewritten by someone with database access and are not externally anchored. The journal stores latest full case snapshots as events. No identity, access controls or encrypted storage. A public deployment must remain synthetic and session-local. Real deployment requires representative temporal and out-of-sample evaluation, calibration, proxy and fairness testing, POPIA and privacy assessment, secure infrastructure and independent human oversight.
 
-This is an educational portfolio prototype, not a production fraud model. Never use its scores to deny, delay or price real claims. No personal or protected attributes are generated or processed. This alone does not establish fairness. Real deployment requires lawful data processing, POPIA assessment, representative validation, calibration, subgroup and proxy analysis, independent governance, and meaningful human review. Synthetic labels are not real fraud evidence.
+## Tests
 
-Review decisions are stored in the current browser session only. Exports contain synthetic data and review outcomes. No authentication or persistent audit store is included.
-
-## Deployment
-
-Run locally or connect this repository to Streamlit Community Cloud with `app.py` as the entrypoint. No live deployment is included.
+Unit tests cover split isolation, schema validation, explanation fidelity, benchmark, metrics, calibration, capacity, drift, stress, queue, CSV injection and SQLite persistence/integrity. Streamlit AppTest covers all workspaces and sample case/queue interactions. GitHub Actions runs on Python 3.11 and 3.12.
