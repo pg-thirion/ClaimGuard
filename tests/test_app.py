@@ -1,9 +1,10 @@
+from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
 @pytest.fixture(scope="module")
 def app():
-    return AppTest.from_file("app.py",default_timeout=90).run()
+    return AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py",default_timeout=90).run()
 
 @pytest.mark.parametrize("page",["Portfolio overview","Investigation queue","Claim inspector","Case journal","Model evaluation","Threshold planner","Drift & scenarios","Model governance"])
 def test_page(app,page):
